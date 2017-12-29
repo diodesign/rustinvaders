@@ -10,22 +10,32 @@
 extern crate kiss3d;
 extern crate nalgebra as na;
 
+use std::time::Instant;
 use na::{Vector3, Translation3, UnitQuaternion};
 use kiss3d::window::Window;
 use kiss3d::light::Light;
 use kiss3d::scene::SceneNode;
 
+enum Frame
+{
+  Normal,
+  Alternate
+}
+
 struct Pixel
 {
   width: f32, height: f32, depth: f32,
-  x: f32, y: f32, z: f32,
-  r: f32, g: f32, b: f32
+  x:  f32, y:  f32, z:  f32, /* normal x,y,z frame positions */
+  tx: f32, ty: f32, tz: f32, /* alternate x,y,z frame translations */
+  r:  f32, g:  f32, b:  f32,
+  node: Option<SceneNode>    /* this pixel's scene node */
 }
 
 struct Alien
 {
   pixels: Vec<Pixel>,
-  model: SceneNode
+  model: SceneNode,
+  animation_frame: Frame
 }
 
 impl Alien
@@ -40,55 +50,59 @@ impl Alien
        * bottom, grouping horizontal lines into bars, and leaving individual pixels
        * as is. the overall design is:
 
-           *     *  
+           *     *
             *   *   
            *******  
           ** *** ** 
          ***********
          * ******* *
          * *     * *
-            ** **         */
+            ** **       */
+           
 
       pixels: vec!
       [
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -3.0, y:  4.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  3.0, y:  4.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -3.0, y:  4.0, z: 0.0, tx:  1.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  3.0, y:  4.0, z: 0.0, tx: -1.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
         
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -2.0, y:  3.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  2.0, y:  3.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -2.0, y:  3.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  2.0, y:  3.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
 
-        Pixel { width:  7.0, height: 1.0, depth: 1.0, x:  0.0, y:  2.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
+        Pixel { width:  7.0, height: 1.0, depth: 1.0, x:  0.0, y:  2.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
 
-        Pixel { width:  2.0, height: 1.0, depth: 1.0, x: -4.0, y:  1.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  3.0, height: 1.0, depth: 1.0, x:  0.0, y:  1.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  2.0, height: 1.0, depth: 1.0, x:  4.0, y:  1.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
+        Pixel { width:  2.0, height: 1.0, depth: 1.0, x: -4.0, y:  1.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  3.0, height: 1.0, depth: 1.0, x:  0.0, y:  1.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  2.0, height: 1.0, depth: 1.0, x:  4.0, y:  1.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
 
-        Pixel { width: 11.0, height: 1.0, depth: 1.0, x:  0.0, y:  0.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
+        Pixel { width: 11.0, height: 1.0, depth: 1.0, x:  0.0, y:  0.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
 
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  5.0, y: -1.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  7.0, height: 1.0, depth: 1.0, x:  0.0, y: -1.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -5.0, y: -1.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  5.0, y: -1.0, z: 0.0, tx:  0.0, ty: 3.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  7.0, height: 1.0, depth: 1.0, x:  0.0, y: -1.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -5.0, y: -1.0, z: 0.0, tx:  0.0, ty: 3.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
 
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -5.0, y: -2.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -3.0, y: -2.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  3.0, y: -2.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  5.0, y: -2.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -5.0, y: -2.0, z: 0.0, tx:  0.0, ty: 3.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -3.0, y: -2.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  3.0, y: -2.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  5.0, y: -2.0, z: 0.0, tx:  0.0, ty: 3.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
 
-        Pixel { width:  2.0, height: 1.0, depth: 1.0, x: -1.5, y: -3.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
-        Pixel { width:  2.0, height: 1.0, depth: 1.0, x:  1.5, y: -3.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 }
+        Pixel { width:  2.0, height: 1.0, depth: 1.0, x: -1.5, y: -3.0, z: 0.0, tx: -2.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None },
+        Pixel { width:  2.0, height: 1.0, depth: 1.0, x:  1.5, y: -3.0, z: 0.0, tx:  2.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None }
       ],
 
       /* attach all the pixels together as a group */
-      model: window.add_group()
+      model: window.add_group(),
+
+      /* start off in normal animation frame */
+      animation_frame: Frame::Normal
     }
   }
 
   fn spawn(&mut self)
   {
     /* spin through the array of pixels to create this monster */
-    for pixel in self.pixels.iter()
+    for pixel in self.pixels.iter_mut()
     {
-      /* create a cube pixel */
+      /* create a cube pixel aka a scene node */
       let mut p = self.model.add_cube(pixel.width, pixel.height, pixel.depth);
 
       /* move it into position */
@@ -96,24 +110,70 @@ impl Alien
 
       /* color it */
       p.set_color(pixel.r, pixel.g, pixel.b);
+
+      /* keep a record of the pixel's scene node */
+      (*pixel).node = Some(p);
     }
   }
+
+  /* call this to switch pixels between their normal state and their
+   * alternative state. this allows the alien to have two frames of animation:
+   * normal and alternative. */
+  fn animate(&mut self)
+  {
+    match self.animation_frame
+    {
+      Frame::Normal =>
+      {
+        /* move pixels into alternate positions, and update alien frame state */
+        for pixel in self.pixels.iter_mut()
+        {
+          pixel.node.as_mut().unwrap().append_translation(&Translation3::new(pixel.tx, pixel.ty, pixel.tz));
+        }
+        self.animation_frame = Frame::Alternate;
+      },
+
+      Frame::Alternate =>
+      {
+        /* move pixels back to normal positions, and update alien frame state */
+        for pixel in self.pixels.iter_mut()
+        {
+          pixel.node.as_mut().unwrap().append_translation(&Translation3::new(pixel.tx * -1.0, pixel.ty * -1.0, pixel.tz * -1.0));
+        }
+        self.animation_frame = Frame::Normal;
+      }
+    };
+  }
+
 }
 
 fn main() {
-    let mut window = Window::new("Rust invaders");
+  let start_time = Instant::now();
+  let mut elapsed_time = start_time.elapsed().as_secs();
 
-    /* create our first baddie! */
-    let mut baddie = Alien::new(&mut window);
-    baddie.spawn();
+  let mut window = Window::new("Rust invaders");
 
-    window.set_background_color(0.0, 0.0, 0.0);
-    window.set_light(Light::StickToCamera);
+  /* create our first baddie! */
+  let mut baddie = Alien::new(&mut window);
+  baddie.spawn();
 
-    let rot1 = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.008);
+  window.set_background_color(0.0, 0.0, 0.0);
+  window.set_light(Light::StickToCamera);
 
-    while window.render()
+  let rot1 = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.008);
+
+  while window.render()
+  {
+    /* switch animation frames every second */
+    let latest_time = start_time.elapsed().as_secs();
+    if latest_time > elapsed_time
     {
-      baddie.model.prepend_to_local_rotation(&rot1);
+      baddie.animate();
+      elapsed_time = latest_time;
     }
+
+    baddie.model.prepend_to_local_rotation(&rot1);
+  }
 }
+
+
