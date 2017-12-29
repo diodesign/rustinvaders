@@ -10,9 +10,10 @@
 extern crate kiss3d;
 extern crate nalgebra as na;
 
-use na::Translation3;
+use na::{Vector3, Translation3, UnitQuaternion};
 use kiss3d::window::Window;
 use kiss3d::light::Light;
+use kiss3d::scene::SceneNode;
 
 struct Pixel
 {
@@ -23,12 +24,13 @@ struct Pixel
 
 struct Alien
 {
-  pixels: Vec<Pixel>
+  pixels: Vec<Pixel>,
+  model: SceneNode
 }
 
 impl Alien
 {
-  fn new() -> Alien
+  fn new(window: &mut Window) -> Alien
   {
     Alien
     {
@@ -74,22 +76,25 @@ impl Alien
 
         Pixel { width:  2.0, height: 1.0, depth: 1.0, x: -1.5, y: -3.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 },
         Pixel { width:  2.0, height: 1.0, depth: 1.0, x:  1.5, y: -3.0, z: 0.0, r: 0.2, g: 1.0, b: 0.2 }
-      ]
+      ],
+
+      /* attach all the pixels together as a group */
+      model: window.add_group()
     }
   }
 
-  fn spawn(&self, window: &mut Window)
+  fn spawn(&mut self)
   {
     /* spin through the array of pixels to create this monster */
     for pixel in self.pixels.iter()
     {
       /* create a cube pixel */
-      let mut p = window.add_cube(pixel.width, pixel.height, pixel.depth);
+      let mut p = self.model.add_cube(pixel.width, pixel.height, pixel.depth);
 
       /* move it into position */
       p.append_translation(&Translation3::new(pixel.x, pixel.y, pixel.z));
 
-      /* and color it */
+      /* color it */
       p.set_color(pixel.r, pixel.g, pixel.b);
     }
   }
@@ -99,13 +104,16 @@ fn main() {
     let mut window = Window::new("Rust invaders");
 
     /* create our first baddie! */
-    let baddie = Alien::new();
-    baddie.spawn(&mut window);
+    let mut baddie = Alien::new(&mut window);
+    baddie.spawn();
 
     window.set_background_color(0.0, 0.0, 0.0);
     window.set_light(Light::StickToCamera);
 
-    while !window.should_close() {
-        window.render();
+    let rot1 = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.008);
+
+    while window.render()
+    {
+      baddie.model.prepend_to_local_rotation(&rot1);
     }
 }
