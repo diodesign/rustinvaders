@@ -10,7 +10,6 @@
 extern crate kiss3d;
 extern crate nalgebra as na;
 
-use std::time::Instant;
 use na::{Vector3, Translation3, UnitQuaternion};
 use kiss3d::window::Window;
 use kiss3d::light::Light;
@@ -148,10 +147,8 @@ impl Alien
 }
 
 fn main() {
-  let start_time = Instant::now();
-  let mut elapsed_time = start_time.elapsed().as_secs();
-
   let mut window = Window::new("Rust invaders");
+  window.set_framerate_limit(Some(60));
 
   /* create our first baddie! */
   let mut baddie = Alien::new(&mut window);
@@ -160,19 +157,26 @@ fn main() {
   window.set_background_color(0.0, 0.0, 0.0);
   window.set_light(Light::StickToCamera);
 
-  let rot1 = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.008);
+  let mut rotate_dir = 1.0;
+  let mut rotate_pos = 0.0;
 
   while window.render()
   {
-    /* switch animation frames every second */
-    let latest_time = start_time.elapsed().as_secs();
-    if latest_time > elapsed_time
+    /* oscillate the alien and flip its animation frames */
+    rotate_pos = rotate_pos + 0.004 * rotate_dir;
+    let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.016 * rotate_dir);
+    baddie.model.prepend_to_local_rotation(&rotate);
+    if rotate_pos > 0.1
     {
+      rotate_dir = -1.0;
       baddie.animate();
-      elapsed_time = latest_time;
     }
 
-    baddie.model.prepend_to_local_rotation(&rot1);
+    if rotate_pos < -0.1
+    {
+      rotate_dir = 1.0;
+      baddie.animate();
+    }
   }
 }
 
