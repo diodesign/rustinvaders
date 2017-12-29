@@ -14,6 +14,7 @@ use na::{Vector3, Translation3, UnitQuaternion};
 use kiss3d::window::Window;
 use kiss3d::light::Light;
 use kiss3d::scene::SceneNode;
+use kiss3d::post_processing::SobelEdgeHighlight;
 
 enum Frame
 {
@@ -148,19 +149,19 @@ impl Alien
 
 fn main() {
   let mut window = Window::new("Rust invaders");
-  window.set_framerate_limit(Some(60));
+  // window.set_framerate_limit(Some(60));
+  window.set_background_color(0.6, 0.6, 0.9);
+  window.set_light(Light::StickToCamera);
 
   /* create our first baddie! */
   let mut baddie = Alien::new(&mut window);
   baddie.spawn();
 
-  window.set_background_color(0.0, 0.0, 0.0);
-  window.set_light(Light::StickToCamera);
-
+  let mut sobel = SobelEdgeHighlight::new(2.0);
   let mut rotate_dir = 1.0;
   let mut rotate_pos = 0.0;
 
-  while window.render()
+  while window.render_with_effect(&mut sobel)
   {
     /* oscillate the alien and flip its animation frames */
     rotate_pos = rotate_pos + 0.004 * rotate_dir;
