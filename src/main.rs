@@ -116,7 +116,7 @@ impl Alien
     }
   }
 
-  fn spawn(&mut self)
+  fn spawn(&mut self, center_x: f32, center_y: f32, center_z: f32)
   {
     /* spin through the array of pixels to create this monster */
     for pixel in self.pixels.iter_mut()
@@ -125,7 +125,7 @@ impl Alien
       let mut p = self.model.add_cube(pixel.width, pixel.height, pixel.depth);
 
       /* move it into position */
-      p.append_translation(&Translation3::new(pixel.x, pixel.y, pixel.z));
+      p.append_translation(&Translation3::new(pixel.x + center_x, pixel.y + center_y, pixel.z + center_z));
 
       /* color it */
       p.set_color(pixel.r, pixel.g, pixel.b);
@@ -232,7 +232,7 @@ fn main() {
   window.set_light(Light::StickToCamera);
 
   /* set up the camera */
-  let eye = Point3::new(0.0, 0.0, -20.0);
+  let eye = Point3::new(0.0, 0.0, -120.0);
   let at = Point3::origin();
   let mut camera = ArcBall::new(eye, at);
 
@@ -241,14 +241,18 @@ fn main() {
   let mut rng = rand::thread_rng();
 
   /* array of baddies to track */ 
-  let mut baddies = Vec::<Alien>::with_capacity(50);
+  let mut baddies = Vec::<Alien>::with_capacity(55);
 
-  /* create and spawn baddies */
-  for _ in 0..1
+  /* create and spawn baddies. each alien is 11 x 8 pixel cubes, so space them out
+   * accordingly - no pun intended. */
+  for y in -2..3
   {
-    let mut baddie = Alien::new(&mut window);
-    baddie.spawn();
-    baddies.push(baddie);
+    for x in -6..5
+    {
+      let mut baddie = Alien::new(&mut window);
+      baddie.spawn(x as f32 * 13.0, y as f32 * 10.0, 0.0);
+      baddies.push(baddie);
+    }
   }
 
   /* keep track of rotating the aliens back and forth slightly */
