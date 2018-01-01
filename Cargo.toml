@@ -6,4 +6,5 @@ authors = [ "Chris Williams <diodesign@gmail.com>" ]
 [dependencies]
 kiss3d = "*"
 nalgebra = "*"
+rand = "*"
 
