@@ -170,7 +170,7 @@ impl Alien
   fn spin(&mut self, direction: f32)
   {
     let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.016 * direction);
-    self.model.prepend_to_local_rotation(&rotate);
+    // self.model.prepend_to_local_rotation(&rotate);
   }
 
   /* kill off this alien by marking it as dying and calculate how it's going to explode into pieces */
@@ -193,15 +193,25 @@ impl Alien
   fn explode(&mut self)
   {
     let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.05);
+    let secs_since_death = self.time_of_death.unwrap().elapsed().as_secs();
     
     for pixel in self.pixels.iter_mut()
     {
       pixel.node.as_mut().unwrap().append_translation(&Translation3::new(pixel.explode_x, pixel.explode_y, pixel.explode_z));
       pixel.node.as_mut().unwrap().prepend_to_local_rotation(&rotate);
+   
+      /* change color of the pixel based on seconds passed */ 
+      match secs_since_death
+      {
+        0 => pixel.node.as_mut().unwrap().set_color(pixel.r * 0.05, pixel.g * 0.00, pixel.b),
+        1 => pixel.node.as_mut().unwrap().set_color(pixel.r * 0.25, pixel.g * 0.25, pixel.b),
+        _ => pixel.node.as_mut().unwrap().set_color(pixel.r * 0.10, pixel.g * 0.10, pixel.b),
+      };
     }
 
-    /* delete model, pixel by pixel, after a few seconds and mark alien as dead */
-    if self.time_of_death.unwrap().elapsed().as_secs() > 3
+    /* after 3 seconds, wipe away the remains: mark all components of the alien invisible,
+     * unlink them from the scene, and mark the alien as dead. */
+    if secs_since_death > 3
     {
       for pixel in self.pixels.iter_mut()
       {
@@ -228,11 +238,11 @@ fn random_explosion_vector(rng: &mut rand::ThreadRng) -> f32
 fn main() {
   let mut window = Window::new("Rust invaders");
   window.set_framerate_limit(Some(60));
-  window.set_background_color(0.2, 0.2, 0.8);
+  window.set_background_color(0.1, 0.1, 0.4);
   window.set_light(Light::StickToCamera);
 
   /* set up the camera */
-  let eye = Point3::new(0.0, 0.0, -120.0);
+  let eye = Point3::new(0.0, 0.0, -200.0);
   let at = Point3::origin();
   let mut camera = ArcBall::new(eye, at);
 
@@ -290,7 +300,7 @@ fn main() {
           }
           
           /* self-destruct after 5 seconds to test animation */
-          if start_time.elapsed().as_secs() > 5
+          if start_time.elapsed().as_secs() > 10
           {
             baddie.die(&mut rng);
           }
