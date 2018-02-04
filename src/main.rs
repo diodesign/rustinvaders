@@ -31,20 +31,8 @@ fn main() {
   let at = Point3::origin();
   let mut camera = ArcBall::new(eye, at);
 
-  /* array of baddies to track */ 
-  let mut baddies = Vec::<aliens::Alien>::with_capacity(55);
-
-  /* create and spawn baddies. each alien is 11 x 8 pixel cubes, so space them out
-   * accordingly - no pun intended. */
-  for y in -2..3
-  {
-    for x in -6..5
-    {
-      let mut baddie = aliens::Alien::new(&mut window);
-      baddie.spawn(x as f32 * 13.0, y as f32 * 10.0, 0.0);
-      baddies.push(baddie);
-    }
-  }
+  /* create an array of baddies to track */ 
+  let mut baddies = aliens::spawn_playfield(&mut window);
 
   while window.render_with_camera(&mut camera)
   {

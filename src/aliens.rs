@@ -127,8 +127,9 @@ impl Alien
   }
 
   /* calling new() just initializes the alien. call spawn() to actually create it on screen
-   * => center_x, center_y, center_z = coords for the center of the alien model */
-  pub fn spawn(&mut self, center_x: f32, center_y: f32, center_z: f32)
+   * => center_x, center_y, center_z = coords for the center of the alien model
+   *    angle = y-axis rotation angle to apply to the alien */
+  pub fn spawn(&mut self, center_x: f32, center_y: f32, center_z: f32, angle: f32)
   {
     /* spin through the array of pixels to create this monster */
     for pixel in self.pixels.iter_mut()
@@ -146,8 +147,9 @@ impl Alien
       (*pixel).node = Some(p);
     }
 
-    /* move the whole model into position */
+    /* move the whole model into position and rotate it as required */
     self.model.append_translation(&Translation3::new(center_x, center_y, center_z));
+    self.rotate(angle);
   }
 
   /* kill off this alien by marking it as dying and calculate how it's going to explode into pieces */
@@ -182,8 +184,7 @@ impl Alien
       State::Alive =>
       {
         /* rotate the alien slightly */
-        let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.018);
-        self.model.prepend_to_local_rotation(&rotate);
+        self.rotate(0.018);
 
         /* switch between animation frames every second */
         if self.last_time.elapsed().as_secs() > 1
@@ -200,6 +201,13 @@ impl Alien
 
       _ => {}
     }
+  }
+
+  /* rotate the whole alien model by given angle along y-axis */
+  fn rotate(&mut self, angle: f32)
+  {
+    let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), angle);
+    self.model.prepend_to_local_rotation(&rotate);
   }
 
   /* call this to switch pixels between their base and translated positions.
@@ -278,5 +286,24 @@ fn random_explosion_vector(rng: &mut rand::ThreadRng) -> f32
   }
   
   return rng.gen_range(0.1f32, 0.5f32);
+}
+
+/* construct a playfield of aliens, pass it back as a vector of aliens */
+pub fn spawn_playfield(mut window: &mut Window) -> Vec<Alien>
+{
+  let mut baddies = Vec::<Alien>::with_capacity(55);
+
+  for y in -2..3
+  {
+    for x in -6..5
+    {
+      let mut baddie = Alien::new(&mut window);
+      let rotation = 0.4 * ((x + y) as f32);
+      baddie.spawn(x as f32 * 13.0, y as f32 * 10.0, 0.0, rotation);
+      baddies.push(baddie);
+    }
+  }
+
+  return baddies;
 }
 
