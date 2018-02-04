@@ -7,6 +7,7 @@
  *
  */
 
+extern crate glfw;
 extern crate kiss3d;
 extern crate nalgebra as na;
 extern crate rand;
@@ -14,6 +15,7 @@ extern crate rand;
 use std::time::Instant;
 
 use na::{Vector3, Translation3, UnitQuaternion, Point3};
+use glfw::{Action, WindowEvent};
 use kiss3d::window::Window;
 use kiss3d::light::Light;
 use kiss3d::scene::SceneNode;
@@ -124,8 +126,8 @@ impl Alien
       /* create a cube pixel aka a scene node */
       let mut p = self.model.add_cube(pixel.width, pixel.height, pixel.depth);
 
-      /* move it into position */
-      p.append_translation(&Translation3::new(pixel.x + center_x, pixel.y + center_y, pixel.z + center_z));
+      /* move pixel into position within the alien */
+      p.append_translation(&Translation3::new(pixel.x, pixel.y, pixel.z));
 
       /* color it */
       p.set_color(pixel.r, pixel.g, pixel.b);
@@ -133,6 +135,9 @@ impl Alien
       /* keep a record of the pixel's scene node */
       (*pixel).node = Some(p);
     }
+
+    /* move the whole model into position */
+    self.model.append_translation(&Translation3::new(center_x, center_y, center_z));
   }
 
   /* call this to switch pixels between their normal state and their
@@ -169,8 +174,8 @@ impl Alien
    * => direction = 1 to move clockwise, -1 to move anticlockwise */
   fn spin(&mut self, direction: f32)
   {
-    let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.016 * direction);
-    // self.model.prepend_to_local_rotation(&rotate);
+    let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.018 * direction);
+    self.model.prepend_to_local_rotation(&rotate);
   }
 
   /* kill off this alien by marking it as dying and calculate how it's going to explode into pieces */
@@ -203,15 +208,20 @@ impl Alien
       /* change color of the pixel based on seconds passed */ 
       match secs_since_death
       {
-        0 => pixel.node.as_mut().unwrap().set_color(pixel.r * 0.05, pixel.g * 0.00, pixel.b),
-        1 => pixel.node.as_mut().unwrap().set_color(pixel.r * 0.25, pixel.g * 0.25, pixel.b),
-        _ => pixel.node.as_mut().unwrap().set_color(pixel.r * 0.10, pixel.g * 0.10, pixel.b),
+        0 | 1 => pixel.node.as_mut().unwrap().set_color(1.0, 0.4, 0.0),
+            2 => pixel.node.as_mut().unwrap().set_color(1.0, 0.6, 0.0),
+            3 => pixel.node.as_mut().unwrap().set_color(1.0, 0.8, 0.0),
+            4 => pixel.node.as_mut().unwrap().set_color(1.0, 1.0, 0.0),
+            5 => pixel.node.as_mut().unwrap().set_color(0.8, 0.8, 0.0),
+            6 => pixel.node.as_mut().unwrap().set_color(0.6, 0.6, 0.0),
+            7 => pixel.node.as_mut().unwrap().set_color(0.4, 0.4, 0.0),
+            _ => pixel.node.as_mut().unwrap().set_color(0.2, 0.2, 0.0),
       };
     }
 
     /* after 3 seconds, wipe away the remains: mark all components of the alien invisible,
      * unlink them from the scene, and mark the alien as dead. */
-    if secs_since_death > 3
+    if secs_since_death > 20
     {
       for pixel in self.pixels.iter_mut()
       {
@@ -238,7 +248,7 @@ fn random_explosion_vector(rng: &mut rand::ThreadRng) -> f32
 fn main() {
   let mut window = Window::new("Rust invaders");
   window.set_framerate_limit(Some(60));
-  window.set_background_color(0.1, 0.1, 0.4);
+  window.set_background_color(0.0, 0.0, 0.0); 
   window.set_light(Light::StickToCamera);
 
   /* set up the camera */
@@ -247,7 +257,6 @@ fn main() {
   let mut camera = ArcBall::new(eye, at);
 
   /* metadata */
-  let start_time = Instant::now();
   let mut rng = rand::thread_rng();
 
   /* array of baddies to track */ 
@@ -272,18 +281,18 @@ fn main() {
   while window.render_with_camera(&mut camera)
   {
     let mut animate_baddies = false;
-
+    
     /* oscillate the aliens and flip between their two animation states */
     rotate_pos = rotate_pos + 0.004 * rotate_dir;
     if rotate_pos > 0.1
     {
       rotate_dir = -1.0;
-      animate_baddies = true;
+      animate_baddies = true; /* flip animation state */
     }
     if rotate_pos < -0.1
     {
       rotate_dir = 1.0;
-      animate_baddies = true;
+      animate_baddies = true; /* flip animation state */
     }
 
     /* update the alien positions */
@@ -298,12 +307,6 @@ fn main() {
           {
             baddie.animate();
           }
-          
-          /* self-destruct after 5 seconds to test animation */
-          if start_time.elapsed().as_secs() > 10
-          {
-            baddie.die(&mut rng);
-          }
         },
 
         State::Dying =>
@@ -313,6 +316,23 @@ fn main() {
 
         State::Dead => continue
       };
+    }
+
+    /* process pending events */
+    for event in window.events().iter()
+    {
+      match event.value
+      {
+        /* press a mouse key to kill them all */
+        WindowEvent::MouseButton(_, Action::Press, _) =>
+        {
+          for baddie in baddies.iter_mut()
+          {
+            baddie.die(&mut rng);
+          }
+        },
+        _ => { }
+      }
     }
   }
 }
