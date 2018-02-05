@@ -20,20 +20,14 @@ use na::{Vector3, Translation3, UnitQuaternion};
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
-/* Aliens have 3 game states: alive, exploding, or dead */
-pub enum State
-{
-  Alive,
-  Dying,
-  Dead
-}
+const ALIEN_HEIGHT: f32     = 10.0; /* in 3d units */
+const ALIEN_WIDTH: f32      = 13.0; /* in 3d units */
+const ALIENS_PER_ROW: i32   = 11;
+const ALIEN_ROWS: i32       = 5;
+const ALIEN_TOP_Y: i32      = 7; /* in whole number of aliens from game world center */
+const ALIEN_SIDE_SPACE: i32 = 3; /* space either side (in nr of aliens) of alien pattern */
 
-enum Frame
-{
-  Base,
-  Translated
-}
-
+/* aliens are made up of a number of pixels */
 struct Pixel
 {
   /* dimensions of this pixel */
@@ -50,15 +44,42 @@ struct Pixel
   node: Option<SceneNode> /* this pixel's scene node */
 }
 
+/* aliens have 3 game states: alive, exploding, or dead */
+enum State
+{
+  Alive,
+  Dying,
+  Dead
+}
+
+/* aliens are either shuffling left, right, or down and then right, or down then left */
+enum Movement
+{
+  Left,         /* moving left */
+  Right,        /* moving right */
+  DownRight,    /* moving down, will go right */
+  DownLeft      /* moving down, will go left */
+}
+
+/* aliens have 2 animation states: the base design and a slightly modified one */ 
+enum Frame
+{
+  Base,
+  Translated
+}
+
 pub struct Alien
 {
-  pixels: Vec<Pixel>,
-  model: SceneNode,
-  frame: Frame,
-  state: State,
-  last_time: Instant,
-  time_of_death: Option<Instant>,
-  rng: rand::ThreadRng
+  x: f32, y: f32, z: f32,         /* cent/r of the model on the playfield */
+  pixels: Vec<Pixel>,             /* the pixels making up this alien */
+  model: SceneNode,               /* the scene node holding all the pixels */
+  frame: Frame,                   /* the type of animation frame being displayed */
+  state: State,                   /* whether the alien is alive, dead, etc */
+  last_time: Instant,             /* last time we animated this alien */
+  time_of_death: Option<Instant>, /* when the alien was declared dead */
+  rng: rand::ThreadRng,           /* access to the thread's RNG */
+  drop_steps: f32,                /* number of units we've moved alien down at end of row */
+  movement: Movement              /* the direction the alien is traveling */
 }
 
 impl Alien
@@ -113,6 +134,8 @@ impl Alien
         Pixel { width:  2.0, height: 1.0, depth: 1.0, x:  1.5, y: -3.0, z: 0.0, tx:  2.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None, explode_x: 0.0, explode_y: 0.0, explode_z: 0.0 }
       ],
 
+      x: 0.0, y: 0.0, z: 0.0, /* default position of alien model's center */
+
       /* attach all the pixels together as a group */
       model: window.add_group(),
 
@@ -122,7 +145,9 @@ impl Alien
       state: State::Alive,
       last_time: Instant::now(), 
       time_of_death: None,
-      rng: rand::thread_rng()
+      rng: rand::thread_rng(),
+      drop_steps: 0.0,
+      movement: Movement::Right
     }
   }
 
@@ -131,6 +156,10 @@ impl Alien
    *    angle = y-axis rotation angle to apply to the alien */
   pub fn spawn(&mut self, center_x: f32, center_y: f32, center_z: f32, angle: f32)
   {
+    self.x = center_x;
+    self.y = center_y;
+    self.z = center_z;
+
     /* spin through the array of pixels to create this monster */
     for pixel in self.pixels.iter_mut()
     {
@@ -192,6 +221,23 @@ impl Alien
           self.switch();
           self.last_time = Instant::now();
         }
+
+        let mut tx = 0.0;
+        let mut ty = 0.0;
+
+        /* step alien to the left or right or down */
+        match self.movement
+        {
+          Movement::Left => tx = 0.1,
+          Movement::Right => tx = -0.1,
+          Movement::DownRight | Movement::DownLeft => ty = -0.5
+        }
+
+        /* update position of the alien */
+        self.x = self.x + tx;
+        self.y = self.y + ty;
+        self.drop_steps = self.drop_steps + ty;
+        self.model.append_translation(&Translation3::new(tx, ty, 0.0));
       },
 
       State::Dying =>
@@ -293,17 +339,93 @@ pub fn spawn_playfield(mut window: &mut Window) -> Vec<Alien>
 {
   let mut baddies = Vec::<Alien>::with_capacity(55);
 
-  for y in -2..3
+  /* generate a formation ALIENS_PER_ROW number of aliens wide, centered
+   * on the x-axis, and ALIEN_ROWS number of aliens tall, from ALIEN_TOP_Y downwards.
+   * ALIEN_TOP_Y is in whole number of aliens from the center of the game world  */ 
+
+  for y in (ALIEN_TOP_Y - ALIEN_ROWS)..ALIEN_TOP_Y
   {
-    for x in -6..5
+    for x in 0 - (ALIENS_PER_ROW / 2)..(ALIENS_PER_ROW / 2) + 1
     {
       let mut baddie = Alien::new(&mut window);
       let rotation = 0.4 * ((x + y) as f32);
-      baddie.spawn(x as f32 * 13.0, y as f32 * 10.0, 0.0, rotation);
+      baddie.spawn(x as f32 * ALIEN_WIDTH, y as f32 * ALIEN_HEIGHT, 0.0, rotation);
       baddies.push(baddie);
     }
   }
 
   return baddies;
+}
+
+/* update the positions of the aliens and check to see if any collided with the invisible walls
+ * which causes them to move down a row and reverse movement */
+pub fn animate_playfield(aliens: &mut Vec<Alien>)
+{
+  let mut hit_wall_right = false;
+  let mut hit_wall_left = false;
+
+  /* move the aliens and check for collision with side walls */
+  for baddie in aliens.iter_mut()
+  {
+    /* animate and move the alien */
+    baddie.animate();
+
+    /* if we're moving left or right, check to see if we hit a wall */
+    match baddie.movement
+    {
+      Movement::Left | Movement::Right =>
+      {
+        /* did the baddie just collide with a wall om the left? */
+        if baddie.x > ((ALIENS_PER_ROW / 2) + 1 + ALIEN_SIDE_SPACE) as f32 * ALIEN_WIDTH
+        {
+          hit_wall_left = true;
+        }
+        
+        /* did the baddie just collide with a wall om the right? */
+        if baddie.x < ((ALIENS_PER_ROW / 2) + ALIEN_SIDE_SPACE) as f32 * (0.0 - ALIEN_WIDTH)
+        {
+          hit_wall_right = true;
+        }
+      },
+
+      /* if we're going down then make sure we don't go down too far - just one row */
+      Movement::DownLeft =>
+      {
+        if baddie.drop_steps < 0.0 - ALIEN_HEIGHT
+        {
+          baddie.movement = Movement::Left
+        }
+      },
+      
+      Movement::DownRight =>
+      {
+        if baddie.drop_steps < 0.0 - ALIEN_HEIGHT
+        {
+          baddie.movement = Movement::Right
+        }
+      }
+    }
+  }
+
+  /* if one or more of the aliens hit a side wall, then change their directions so they're
+   * all moving downwards */
+  if hit_wall_right == true
+  {
+    for faller in aliens.iter_mut()
+    {
+      faller.drop_steps = 0.0;
+      faller.movement = Movement::DownLeft; /* go down then left */
+    }
+  }
+
+  if hit_wall_left == true
+  {
+    for faller in aliens.iter_mut()
+    {
+      faller.drop_steps = 0.0;
+      faller.movement = Movement::DownRight; /* go down then left */
+    }
+  }
+
 }
 

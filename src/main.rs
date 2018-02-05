@@ -19,46 +19,33 @@ use kiss3d::light::Light;
 use kiss3d::camera::ArcBall;
 
 mod aliens;
+// mod hero;
 
-fn main() {
+fn main()
+{
   let mut window = Window::new("Rust invaders");
   window.set_framerate_limit(Some(60));
   window.set_background_color(0.0, 0.0, 0.0); 
   window.set_light(Light::StickToCamera);
 
   /* set up the camera */
-  let eye = Point3::new(0.0, 0.0, -200.0);
+  let eye = Point3::new(0.0, 0.0, -250.0);
   let at = Point3::origin();
   let mut camera = ArcBall::new(eye, at);
 
-  /* create an array of baddies to track */ 
-  let mut baddies = aliens::spawn_playfield(&mut window);
-
-  while window.render_with_camera(&mut camera)
+  /* main gameplay loop */
+  loop
   {
-    /* update the alien positions */
-    for baddie in baddies.iter_mut()
-    {
-      baddie.animate();
-    }
+    /* create an array of baddies to track */ 
+    let mut baddies = aliens::spawn_playfield(&mut window);
 
-    /* process pending events */
-    for event in window.events().iter()
+    /* create player */
+    // let mut player = hero::spawn(&mut window);
+
+    while window.render_with_camera(&mut camera)
     {
-      match event.value
-      {
-        /* press a mouse key to kill them all */
-        WindowEvent::MouseButton(_, Action::Press, _) =>
-        {
-          for baddie in baddies.iter_mut()
-          {
-            baddie.die();
-          }
-        },
-        _ => { }
-      }
+      aliens::animate_playfield(&mut baddies);
     }
   }
 }
-
 
