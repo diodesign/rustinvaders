@@ -19,7 +19,7 @@ use kiss3d::light::Light;
 use kiss3d::camera::ArcBall;
 
 mod aliens;
-// mod hero;
+mod hero;
 
 fn main()
 {
@@ -36,15 +36,38 @@ fn main()
   /* main gameplay loop */
   loop
   {
+    let mut player_x_pos = 0.0;
+
     /* create an array of baddies to track */ 
     let mut baddies = aliens::spawn_playfield(&mut window);
 
     /* create player */
-    // let mut player = hero::spawn(&mut window);
+    let mut player = hero::Hero::new();
+    player.spawn(&mut window, player_x_pos);
 
     while window.render_with_camera(&mut camera)
     {
       aliens::animate_playfield(&mut baddies);
+    
+      for mut event in window.events().iter()
+      {
+        match event.value
+        {
+          /* handle this keypress */
+          WindowEvent::Key(code, _, Action::Press, _) | WindowEvent::Key(code, _, Action::Repeat, _) =>
+          {
+            match code
+            {
+              glfw::Key::Z => player.move_left(),
+              glfw::Key::X => player.move_right(),
+              _ => {}
+            }
+            event.inhibited = true;
+          },
+
+          _ => {}
+        }
+      }
     }
   }
 }
