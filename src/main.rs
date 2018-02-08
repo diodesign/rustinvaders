@@ -37,6 +37,8 @@ fn main()
   loop
   {
     let mut player_x_pos = 0.0;
+    let mut player_move_left = false;
+    let mut player_move_right = false;
 
     /* create an array of baddies to track */ 
     let mut baddies = aliens::spawn_playfield(&mut window);
@@ -49,24 +51,37 @@ fn main()
     {
       aliens::animate_playfield(&mut baddies);
     
+      /* check events for things like keypresses */
       for mut event in window.events().iter()
       {
         match event.value
         {
-          /* handle this keypress */
-          WindowEvent::Key(code, _, Action::Press, _) | WindowEvent::Key(code, _, Action::Repeat, _) =>
+          /* handle a keypress */
+          WindowEvent::Key(code, _, action, _) =>
           {
-            match code
+            match (code, action)
             {
-              glfw::Key::Z => player.move_left(),
-              glfw::Key::X => player.move_right(),
-              _ => {}
+              (glfw::Key::Z, Action::Press)   => player_move_left  = true,
+              (glfw::Key::Z, Action::Release) => player_move_left  = false,
+              (glfw::Key::X, Action::Press)   => player_move_right = true,
+              (glfw::Key::X, Action::Release) => player_move_right = false,
+              (_, _) => {}
             }
+
+            /* stop other keypresses going through to the default handler */
             event.inhibited = true;
           },
 
-          _ => {}
+          _ => {} /* pass on other events to the default handlers */
         }
+      }
+
+      /* process results of events */
+      match (player_move_left, player_move_right)
+      {
+        (true, false) => player.move_left(),
+        (false, true) => player.move_right(),
+        _ => {}
       }
     }
   }

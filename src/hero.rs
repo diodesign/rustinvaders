@@ -22,7 +22,7 @@ const HERO_HEIGHT:    f32 = 13.0;
 const HERO_RADIUS:    f32 = 5.0;
 const HERO_Y_BASE:    f32 = -90.0;
 const HERO_GRAY:      f32 = 0.8;
-const HERO_MOVE_STEP: f32 = 5.0;
+const HERO_MOVE_STEP: f32 = 1.0;
 
 /* Player has 3 game states: alive, exploding, or dead */
 pub enum State
