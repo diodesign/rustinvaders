@@ -50,7 +50,8 @@ fn main()
     while window.render_with_camera(&mut camera)
     {
       aliens::animate_playfield(&mut baddies);
-    
+      player.animate();
+
       /* check events for things like keypresses */
       for mut event in window.events().iter()
       {
@@ -65,6 +66,7 @@ fn main()
               (glfw::Key::Z, Action::Release) => player_move_left  = false,
               (glfw::Key::X, Action::Press)   => player_move_right = true,
               (glfw::Key::X, Action::Release) => player_move_right = false,
+              (glfw::Key::Enter, Action::Press) => player.fire(&mut window),
               (_, _) => {}
             }
 
