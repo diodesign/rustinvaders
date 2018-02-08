@@ -52,6 +52,22 @@ fn main()
       aliens::animate_playfield(&mut baddies);
       player.animate();
 
+      /* do collision detection */
+      match player.get_bullet_coords()
+      {
+        Some((x, y, z)) =>
+        {
+          match aliens::detect_bullet_collision(&mut baddies, x, y, z)
+          {
+            Some(aliens::Collision::OutOfBounds) => player.destroy_bullet(),
+            _ => {}
+          }
+        }
+        None => {} /* no bullet, nothing to detect */
+      };
+      
+      /* do player collision */
+
       /* check events for things like keypresses */
       for mut event in window.events().iter()
       {

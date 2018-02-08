@@ -87,8 +87,6 @@ impl Hero
       return;
     }
 
-    println!("fire!");
-
     /* calculate initial position of the bullet */
     self.bullet_x = self.x;
     self.bullet_y = HERO_Y_BASE + HERO_HEIGHT;
@@ -100,6 +98,13 @@ impl Hero
     self.bullet = Some(bullet);
   }
 
+  /* remove the bullet from the scene */
+  pub fn destroy_bullet(&mut self)
+  {
+    self.bullet.as_mut().unwrap().unlink();
+    self.bullet = None;
+  }
+
   pub fn animate(&mut self)
   {
     if self.bullet.is_some() == true
@@ -107,6 +112,16 @@ impl Hero
       self.bullet_y = self.bullet_y + BULLET_ASCENT;
       self.bullet.as_mut().unwrap().append_translation(&Translation3::new(0.0, BULLET_ASCENT, 0.0));
     }
+  }
+
+  /* returns Some(x, y, z) coords of active bullet, or None if no bullet */ 
+  pub fn get_bullet_coords(&self) -> Option<(f32, f32, f32)>
+  {
+    if self.bullet.is_some()
+    {
+      return Some((self.bullet_x, self.bullet_y, self.bullet_z));
+    }
+    return None;
   }
 
   pub fn move_left(&mut self)

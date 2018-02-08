@@ -20,6 +20,12 @@ use na::{Vector3, Translation3, UnitQuaternion};
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
+/* define collision outcomes */
+pub enum Collision
+{
+  OutOfBounds, /* bullet left playfield */
+}
+
 const ALIEN_HEIGHT: f32     = 10.0; /* in 3d units */
 const ALIEN_WIDTH: f32      = 13.0; /* in 3d units */
 const ALIENS_PER_ROW: i32   = 11;
@@ -426,6 +432,20 @@ pub fn animate_playfield(aliens: &mut Vec<Alien>)
       faller.movement = Movement::DownRight; /* go down then left */
     }
   }
-
 }
+
+/* check to see if a bullet has left the playfield or hit an alien */
+pub fn detect_bullet_collision(aliens: &mut Vec<Alien>, bullet_x: f32, bullet_y: f32, bullet_z: f32) -> Option<Collision>
+{
+  /* bullet is dead as soon as it's out of area */
+  if bullet_y > (ALIEN_TOP_Y as f32 * ALIEN_HEIGHT)
+  {
+    return Some(Collision::OutOfBounds);
+  }
+
+  return None; /* nothing happened */
+}
+
+
+
 
