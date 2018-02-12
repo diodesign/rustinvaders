@@ -161,7 +161,7 @@ fn main()
       }
 
       /* did the player beat the level? */
-      if aliens::still_alive(&mut playfield.aliens) == 0
+      if aliens::all_dead(&mut playfield.aliens) == true
       {
         println!("well done! level complete");
         playfield.player.destroy(hero::Destruction::NoExplode);

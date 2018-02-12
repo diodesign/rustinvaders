@@ -322,7 +322,7 @@ impl Alien
 
     /* after a period of seconds, wipe away the remains: mark all components of the alien invisible,
      * unlink them from the scene, and mark the alien as dead. */
-    if secs_since_death > 20
+    if secs_since_death > 10
     {
       for pixel in self.pixels.iter_mut()
       {
@@ -489,15 +489,17 @@ fn detect_collision(ax: f32, ay: f32, bx: f32, by: f32) -> bool
   return false;
 }
 
-/* return number of aliens still alive in the array of aliens */
-pub fn still_alive(aliens: &mut Vec<Alien>) -> i32
+/* return true if all aliens in the array of aliens are finally dead */
+pub fn all_dead(aliens: &mut Vec<Alien>) -> bool
 {
-  let mut count = 0;
-  for _ in aliens.iter().filter(|f| f.state == State::Alive)
+  for baddie in aliens.iter()
   {
-    count = count + 1;
+    if baddie.state != State::Dead
+    {
+      return false;
+    }
   }
-  return count;
+  return true;
 }
 
 
