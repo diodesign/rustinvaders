@@ -20,6 +20,15 @@ use kiss3d::camera::ArcBall;
 
 mod aliens;
 mod hero;
+mod bullet;
+
+struct Playfield
+{
+  aliens: Vec<aliens::Alien>,     /* array of aliens to shoot down */
+  bomb: Option<bullet::Bullet>,   /* aliens drop bombs on the player */
+  player: hero::Hero,             /* our player hero */
+  bullet: Option<bullet::Bullet>  /* player fires one bullet at a time */
+}
 
 fn main()
 {
@@ -33,40 +42,50 @@ fn main()
   let at = Point3::origin();
   let mut camera = ArcBall::new(eye, at);
 
+  let mut score = 0;
+  let mut lives = 3;
+  let mut player_x_pos = 0.0;
+
   /* main gameplay loop */
   loop
   {
-    let mut player_x_pos = 0.0;
+    /* game over if we're out of lives */
+    if lives < 1
+    {
+      println!("GAME OVER!");
+      break;
+    }
+
     let mut player_move_left = false;
     let mut player_move_right = false;
 
-    /* create an array of baddies to track */ 
-    let mut baddies = aliens::spawn_playfield(&mut window);
-
-    /* create player */
-    let mut player = hero::Hero::new();
-    player.spawn(&mut window, player_x_pos);
-
+    /* group up the objects into a playfield struct */
+    let mut playfield = Playfield
+    {
+      aliens: aliens::spawn_playfield(&mut window),
+      bomb: None,
+      player: hero::Hero::new(&mut window, player_x_pos),
+      bullet: None
+    };
+    
     while window.render_with_camera(&mut camera)
     {
-      aliens::animate_playfield(&mut baddies);
-      player.animate();
+      /* update aliens, player and any bullets / bombs in play */
+      aliens::animate_playfield(&mut playfield.aliens);
+      playfield.player.animate();
 
-      /* do collision detection */
-      match player.get_bullet_coords()
+      if playfield.bomb.is_some() == true
       {
-        Some((x, y, z)) =>
-        {
-          match aliens::detect_bullet_collision(&mut baddies, x, y, z)
-          {
-            Some(aliens::Collision::OutOfBounds) => player.destroy_bullet(),
-            _ => {}
-          }
-        }
-        None => {} /* no bullet, nothing to detect */
-      };
+        playfield.bomb.as_mut().unwrap().animate();
+      }
       
-      /* do player collision */
+      if playfield.bullet.is_some() == true
+      {
+        playfield.bullet.as_mut().unwrap().animate();
+      }
+
+      /* get the player's x, y coords */
+      let (player_x_pos, player_y_pos, _) = playfield.player.get_coords();
 
       /* check events for things like keypresses */
       for mut event in window.events().iter()
@@ -82,7 +101,16 @@ fn main()
               (glfw::Key::Z, Action::Release) => player_move_left  = false,
               (glfw::Key::X, Action::Press)   => player_move_right = true,
               (glfw::Key::X, Action::Release) => player_move_right = false,
-              (glfw::Key::Enter, Action::Press) => player.fire(&mut window),
+              (glfw::Key::Enter, Action::Press) =>
+              {
+                if playfield.bullet.is_none()
+                {
+                  playfield.bullet
+                    = Some(bullet::Bullet::new(&mut window, player_x_pos, hero::BULLET_Y_START,
+                                               hero::BULLET_RADIUS, hero::BULLET_COLOR_R, hero::BULLET_COLOR_G,
+                                               hero::BULLET_COLOR_B, hero::BULLET_ASCENT));
+                }
+              },
               (_, _) => {}
             }
 
@@ -97,11 +125,50 @@ fn main()
       /* process results of events */
       match (player_move_left, player_move_right)
       {
-        (true, false) => player.move_left(),
-        (false, true) => player.move_right(),
+        (true, false) => playfield.player.move_left(),
+        (false, true) => playfield.player.move_right(),
         _ => {}
+      }
+
+      /* did the player's bullet hit an alien? */
+      if playfield.bullet.is_some() == true
+      {
+        let (x, y, _) = playfield.bullet.as_mut().unwrap().get_coords();
+        match aliens::detect_bullet_collision(&mut playfield.aliens, x, y)
+        {
+          Some(aliens::Collision::OutOfBounds) =>
+          {
+            playfield.bullet.as_mut().unwrap().destroy();
+            playfield.bullet = None;
+          },
+          Some(aliens::Collision::HitAlien) =>
+          {
+            /* detect_bullet_collision() takes care of tidying up the alien */
+            score = score + aliens::ALIEN_POINTS;
+            playfield.bullet.as_mut().unwrap().destroy();
+            playfield.bullet = None;
+          },
+          _ => {}
+        }
+      }
+      
+      /* did an alien fly into the player? */
+      if aliens::detect_ship_collision(&mut playfield.aliens, player_x_pos, player_y_pos) == true
+      {
+        playfield.player.destroy(hero::Destruction::Explode);
+        lives = lives - 1;
+        break;
+      }
+
+      /* did the player beat the level? */
+      if aliens::still_alive(&mut playfield.aliens) == 0
+      {
+        println!("well done! level complete");
+        playfield.player.destroy(hero::Destruction::NoExplode);
+        break;
       }
     }
   }
 }
+
 

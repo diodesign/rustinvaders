@@ -24,14 +24,18 @@ use kiss3d::scene::SceneNode;
 pub enum Collision
 {
   OutOfBounds, /* bullet left playfield */
+  HitAlien /* bullet hit an alien */
 }
 
 const ALIEN_HEIGHT: f32     = 10.0; /* in 3d units */
 const ALIEN_WIDTH: f32      = 13.0; /* in 3d units */
 const ALIENS_PER_ROW: i32   = 11;
 const ALIEN_ROWS: i32       = 5;
-const ALIEN_TOP_Y: i32      = 7; /* in whole number of aliens from game world center */
-const ALIEN_SIDE_SPACE: i32 = 3; /* space either side (in nr of aliens) of alien pattern */
+const ALIEN_TOP_Y: i32      = 7;    /* in whole number of aliens from game world center */
+const ALIEN_SIDE_SPACE: i32 = 3;    /* space either side (in nr of aliens) of alien pattern */
+pub const ALIEN_POINTS: i32 = 100;  /* number of points per alien */
+
+const COLLISION_TOLERANCE: f32 = 5.0; /* objects closer than this are considered collided */
 
 /* aliens are made up of a number of pixels */
 struct Pixel
@@ -51,6 +55,7 @@ struct Pixel
 }
 
 /* aliens have 3 game states: alive, exploding, or dead */
+#[derive(PartialEq)]
 enum State
 {
   Alive,
@@ -76,7 +81,7 @@ enum Frame
 
 pub struct Alien
 {
-  x: f32, y: f32, z: f32,         /* cent/r of the model on the playfield */
+  x: f32, y: f32, z: f32,         /* center of the model on the playfield */
   pixels: Vec<Pixel>,             /* the pixels making up this alien */
   model: SceneNode,               /* the scene node holding all the pixels */
   frame: Frame,                   /* the type of animation frame being displayed */
@@ -371,7 +376,7 @@ pub fn animate_playfield(aliens: &mut Vec<Alien>)
   let mut hit_wall_left = false;
 
   /* move the aliens and check for collision with side walls */
-  for baddie in aliens.iter_mut()
+  for baddie in aliens.iter_mut().filter(|f| f.state != State::Dead)
   {
     /* animate and move the alien */
     baddie.animate();
@@ -423,7 +428,6 @@ pub fn animate_playfield(aliens: &mut Vec<Alien>)
       faller.movement = Movement::DownLeft; /* go down then left */
     }
   }
-
   if hit_wall_left == true
   {
     for faller in aliens.iter_mut()
@@ -434,8 +438,9 @@ pub fn animate_playfield(aliens: &mut Vec<Alien>)
   }
 }
 
-/* check to see if a bullet has left the playfield or hit an alien */
-pub fn detect_bullet_collision(aliens: &mut Vec<Alien>, bullet_x: f32, bullet_y: f32, bullet_z: f32) -> Option<Collision>
+/* check to see if a bullet has left the playfield or hit an alien.
+ * if an alien is hit then blow it up and remove it */
+pub fn detect_bullet_collision(aliens: &mut Vec<Alien>, bullet_x: f32, bullet_y: f32) -> Option<Collision>
 {
   /* bullet is dead as soon as it's out of area */
   if bullet_y > (ALIEN_TOP_Y as f32 * ALIEN_HEIGHT)
@@ -443,9 +448,56 @@ pub fn detect_bullet_collision(aliens: &mut Vec<Alien>, bullet_x: f32, bullet_y:
     return Some(Collision::OutOfBounds);
   }
 
+  /* check through all the aliens */
+  for baddie in aliens.iter_mut().filter(|f| f.state == State::Alive)
+  {
+    if detect_collision(bullet_x, bullet_y, baddie.x, baddie.y) == true
+    {
+      baddie.die();
+      return Some(Collision::HitAlien);
+    }
+  }
+
   return None; /* nothing happened */
 }
 
+/* check to see if an alien (in the array aliens) has hit the player (x, y) craft */
+pub fn detect_ship_collision(aliens: &mut Vec<Alien>, x: f32, y: f32) -> bool
+{
+  for baddie in aliens.iter_mut().filter(|f| f.state == State::Alive)
+  {
+    /* if an alien sneaks under the player then it's game over */
+    if baddie.y < y || detect_collision(baddie.x, baddie.y, x, y) == true
+    {
+      return true;
+    }
+  }
 
+  return false;
+}
+ 
+/* returns true if object with coords ax,ay is very close to or in direct collision with
+ * an object at coords bx,by. no z coord comparison, of course */
+fn detect_collision(ax: f32, ay: f32, bx: f32, by: f32) -> bool
+{
+  if ax < bx + COLLISION_TOLERANCE && ax > bx - COLLISION_TOLERANCE &&
+     ay < by + COLLISION_TOLERANCE && ay > by - COLLISION_TOLERANCE
+  {
+    return true;
+  }
+
+  return false;
+}
+
+/* return number of aliens still alive in the array of aliens */
+pub fn still_alive(aliens: &mut Vec<Alien>) -> i32
+{
+  let mut count = 0;
+  for _ in aliens.iter().filter(|f| f.state == State::Alive)
+  {
+    count = count + 1;
+  }
+  return count;
+}
 
 
