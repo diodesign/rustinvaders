@@ -12,7 +12,7 @@ extern crate kiss3d;
 extern crate nalgebra as na;
 extern crate rand;
 
-use glfw::{Action, WindowEvent};
+use glfw::{ Action, WindowEvent };
 use na::Point3;
 use kiss3d::window::Window;
 use kiss3d::light::Light;
@@ -235,9 +235,9 @@ fn play_level(mut window: &mut Window, camera: &mut ArcBall, state: &mut Game) -
       let (x, y, _) = playfield.aliens.bomb.as_mut().unwrap().get_coords();
       if playfield.player.collision(x, y) == collision::CollisionOutcome::Hit
       {
-        /* tell aliens to blow up their bomb if there is a hit.
-         * the call to collision() handles any ship explosion */
+        /* tell aliens to blow up their bomb, and the player its ship, if there is a hit */
         playfield.aliens.destroy_bomb();
+        playfield.player.destroy(&mut window); /* window needed to add explosion debris to game world */
         state.lives = state.lives - 1;
       }
 
@@ -254,7 +254,7 @@ fn play_level(mut window: &mut Window, camera: &mut ArcBall, state: &mut Game) -
     /* did an alien fly into the player? */
     if playfield.aliens.collision(player_x_pos, player_y_pos) == collision::CollisionOutcome::Hit
     {
-      playfield.player.destroy();
+      playfield.player.destroy(&mut window); /* window needed to add explosion debris to game world */
       state.lives = state.lives - 1
     }
 
@@ -262,7 +262,7 @@ fn play_level(mut window: &mut Window, camera: &mut ArcBall, state: &mut Game) -
      * game over, I'm afraid */
     if playfield.aliens.lowest_y() <= player_y_pos
     {
-      playfield.player.destroy();
+      playfield.player.destroy(&mut window); /* window needed to add explosion debris to game world */
       state.lives = 0;
     }
   }

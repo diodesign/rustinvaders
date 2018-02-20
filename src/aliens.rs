@@ -16,7 +16,7 @@ extern crate rand;
 
 use std::time::Instant;
 use rand::Rng;
-use na::{Vector3, Translation3, UnitQuaternion};
+use na::{ Vector3, Translation3, UnitQuaternion };
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
@@ -344,9 +344,11 @@ impl Alien
     }
   }
 }
+
+/* ------------------------------------------------------------------------------ */
   
 /* generate a random value suitable for exploding a pixel */
-fn random_explosion_vector(rng: &mut rand::ThreadRng) -> f32
+pub fn random_explosion_vector(rng: &mut rand::ThreadRng) -> f32
 {
   if rng.gen()
   {
@@ -530,7 +532,7 @@ impl Aliens
   }
 
   /* check to see if any alive aliens collide with the thing at x,y. if one does,
-   * then blow it up and return a hit */
+   * then blow up the alien, removing it from the game, and return a hit */
   pub fn collision(&mut self, x: f32, y: f32) -> collision::CollisionOutcome
   {
     for baddie in self.squadron.iter_mut().filter(|b| b.state == State::Alive)

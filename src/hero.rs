@@ -14,12 +14,14 @@ extern crate kiss3d;
 extern crate nalgebra as na;
 extern crate rand;
 
-use na::Translation3;
+use std::time::Instant;
+use na::{ Translation3, UnitQuaternion, Vector3 };
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
 use bullet;
 use collision;
+use aliens::random_explosion_vector;
 
 const HERO_HEIGHT:     f32 = 13.0;
 const HERO_RADIUS:     f32 = 5.0;
@@ -36,20 +38,29 @@ const BULLET_COLOR_G: f32 = 0.0;
 const BULLET_COLOR_B: f32 = 0.0;
 const BULLET_ASCENT:  f32 = 2.0;
 
+/* when the ship explodes, we need to animate its debris particles */
+struct Debris
+{
+  node: SceneNode, /* the object in the game world */
+  x: f32, y: f32, z: f32 /* movement vector */
+}
+
 /* Player has 3 game states: alive, exploding, or dead */
 #[derive(PartialEq)]
 pub enum State
 {
-  Alive,
-  Dying,
-  Dead
+  Alive,   /* playing normally */
+  Dying,   /* exploding in death */
+  Dead     /* finished exploding, reseting to alive */
 }
 
 pub struct Hero
 {
-  x: f32, y: f32, z: f32,   /* game world coords of the hero's ship */
-  ship: SceneNode,          /* the ship in the graphics context */
-  pub state: State,
+  x: f32, y: f32, z: f32,            /* game world coords of the hero's ship */
+  ship: SceneNode,                   /* the ship in the graphics context */
+  time_of_death: Option<Instant>,    /* when the hero started dying */
+  debris: Vec<Debris>,               /* vector array of debris particles when dying */
+  pub state: State,                  /* whether the hero is alive, exploding or dead */
   pub bullet: Option<bullet::Bullet> /* bullet fired by the ship */
 }
 
@@ -63,7 +74,9 @@ impl Hero
       state: State::Alive,
       x: x, y: HERO_Y_BASE, z: 0.0,
       ship: window.add_cone(HERO_RADIUS, HERO_HEIGHT),
-      bullet: None
+      bullet: None,
+      time_of_death: None,
+      debris: Vec::new()
     };
     
     hero.ship.append_translation(&Translation3::new(hero.x, hero.y, hero.z));
@@ -77,12 +90,37 @@ impl Hero
   {
     self.ship.unlink();
     self.destroy_bullet();
+
+    for particle in self.debris.iter_mut()
+    {
+      particle.node.unlink();
+    }
   }
 
   /* start blowing up the ship */
-  pub fn destroy(&mut self)
+  pub fn destroy(&mut self, mut window: &mut Window)
   {
+    self.time_of_death = Some(Instant::now());
     self.state = State::Dying;
+
+    /* create particles of exploding debris */
+    let mut rnd = rand::thread_rng();
+    for _ in 0..20
+    {
+      let mut particle = Debris
+      {
+        node: window.add_cube(2.0, 2.0, 2.0),
+        x: random_explosion_vector(&mut rnd),
+        y: random_explosion_vector(&mut rnd).abs(), /* only explode upwards */
+        z: random_explosion_vector(&mut rnd),
+      };
+
+      /* color the debris a firey red and move it into position of the player's ship */ 
+      particle.node.set_color(1.0, 0.2, 0.2);
+      particle.node.append_translation(&Translation3::new(self.x, self.y, self.z));
+
+      self.debris.push(particle);
+    }
   }
 
   /* animate the ship exploding or its bullet */
@@ -92,13 +130,48 @@ impl Hero
     match self.state
     {
       State::Alive => self.ship.set_visible(true),
-      _ => self.ship.set_visible(false)
+      State::Dying =>
+      {
+        /* continue blowing up the ship */
+        self.ship.set_visible(false);
+        self.explode();
+
+        /* after 5 seconds, prepare to ressurrect the hero and also
+         * delete all the flying debris */
+        if self.time_of_death.unwrap().elapsed().as_secs() > 4
+        {
+          self.state = State::Dead;
+          while self.debris.len() > 0
+          {
+            let mut particle = self.debris.pop();
+            particle.unwrap().node.unlink();
+          }
+        }
+      },
+      State::Dead =>
+      {
+        /* prepare to ressurrect the ship. if we're out of lives, let
+         * the main game loop catch that */
+        self.time_of_death = None;
+        self.state = State::Alive;
+      }
     }
 
     if self.bullet.is_some() == true
     {
       /* animate the bullet */
       self.bullet.as_mut().unwrap().animate();
+    }
+  }
+
+  /* create debris and animate them when the ship explodes */
+  fn explode(&mut self)
+  {
+    let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.10);
+    for particle in self.debris.iter_mut()
+    {
+      particle.node.append_translation(&Translation3::new(particle.x, particle.y, particle.z));
+      particle.node.prepend_to_local_rotation(&rotate);
     }
   }
 
@@ -123,8 +196,8 @@ impl Hero
     }
   }
 
-  /* check to see if the ship has collidded with a thing at x,y. if so, then
-   * blow up the ship */
+  /* check to see if the ship has collided with a thing at x,y.
+   * note: this check does *NOT* affect the ship */
   pub fn collision(&mut self, x: f32, y: f32) -> collision::CollisionOutcome
   {
     let scenario = collision::Collision
@@ -133,16 +206,7 @@ impl Hero
       b: collision::CollisionObject{ x: self.x, y: self.y }
     };
 
-    match collision::check(scenario)
-    {
-      collision::CollisionOutcome::Hit =>
-      {
-        self.destroy();
-        collision::CollisionOutcome::Hit
-      },
-
-      _ => collision::CollisionOutcome::Miss
-    }
+    return collision::check(scenario);
   }
 
   /* returns Some(x, y, z) coords of the ship */
