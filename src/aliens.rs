@@ -411,7 +411,26 @@ impl Aliens
   {
     if self.bomb.is_none() == true
     {
-      self.bomb = Some(bullet::Bullet::new(&mut window, 0.0, 0.0, BOMB_RADIUS,
+      /* work out how many aliens are alive and therefore qualify to drop a bomb */
+      let aliens = self.squadron.iter().filter(|f| f.state == State::Alive).count();
+      
+      if aliens == 0
+      {
+        return; /* no alive aliens means no bombs dropped */
+      }
+      
+      /* work out which alien should drop a bomb next. the lowest alien in each column can
+       * drop a bomb. first pick a random alive alien so we get its x, y position */
+      let index = rand::thread_rng().next_u64() as usize % aliens;
+      let baddie = self.squadron.iter().filter(|f| f.state == State::Alive).nth(index).unwrap();
+
+      /* now find the alien in the same x column with the lowest y. this assumes 
+       * the vector remains sorted from top left to bottom right... */
+      let lowest = self.squadron.iter().filter(|f| f.x == baddie.x && f.y <= baddie.y).last().unwrap();
+
+      let x = lowest.x;
+      let y = lowest.y - (ALIEN_HEIGHT / 2.0); /* start bomb just below alien */
+      self.bomb = Some(bullet::Bullet::new(&mut window, x, y, BOMB_RADIUS,
                                            BOMB_COLOR_R, BOMB_COLOR_G, BOMB_COLOR_B,
                                            BOMB_DESCENT));
     }
@@ -506,14 +525,11 @@ impl Aliens
   /* return true if all aliens in the squadron are finally dead */
   pub fn all_dead(&mut self) -> bool
   {
-    for baddie in self.squadron.iter()
+    match self.squadron.iter().filter(|f| f.state != State::Dead).count()
     {
-      if baddie.state != State::Dead
-      {
-        return false;
-      }
+      0 => true,
+      _ => false
     }
-    return true;
   }
 
   /* return the lowest Y coord of the alien squadron */
