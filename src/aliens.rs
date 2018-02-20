@@ -217,8 +217,9 @@ impl Alien
     self.time_of_death = Some(Instant::now());
   }
   
-  /* call for each video frame to animate the alien */
-  pub fn animate(&mut self)
+  /* call for each video frame to animate the alien
+   * => step = number of coordinate points to move */
+  pub fn animate(&mut self, step: f32)
   {
     /* are we supposed to be exploding or be alive doing stuff? */
     match self.state
@@ -241,9 +242,9 @@ impl Alien
         /* step alien to the left or right or down */
         match self.movement
         {
-          Movement::Left => tx = 0.1,
-          Movement::Right => tx = -0.1,
-          Movement::DownRight | Movement::DownLeft => ty = -0.5
+          Movement::Left => tx = step,
+          Movement::Right => tx = 0.0 - step,
+          Movement::DownRight | Movement::DownLeft => ty = 0.0 - (step * 2.0)
         }
 
         /* update position of the alien */
@@ -459,11 +460,15 @@ impl Aliens
       self.bomb.as_mut().unwrap().animate();
     }
 
+    /* scale the speed depending on how many aliens are alive - fewer means faster */
+    let aliens = (ALIENS_PER_ROW * ALIEN_ROWS) as usize - self.squadron.iter().filter(|f| f.state == State::Alive).count();
+    let step = 0.1 + (aliens as f32 * 0.008);
+
     /* move the aliens one by one, and check for collision with side walls */
     for baddie in self.squadron.iter_mut().filter(|f| f.state != State::Dead)
     {
       /* animate and move this particular alien */
-      baddie.animate();
+      baddie.animate(step);
 
       /* if we're moving left or right, check to see if we hit a wall */
       match baddie.movement
