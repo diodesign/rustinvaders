@@ -27,7 +27,7 @@ const ALIEN_HEIGHT: f32     = 10.0; /* in 3d units */
 const ALIEN_WIDTH: f32      = 13.0; /* in 3d units */
 const ALIENS_PER_ROW: i32   = 11;
 const ALIEN_ROWS: i32       = 5;
-const ALIEN_TOP_Y: i32      = 7;    /* in whole number of aliens from game world center */
+const ALIEN_TOP_Y: i32      = 9;    /* in whole number of aliens from game world center */
 const ALIEN_SIDE_SPACE: i32 = 3;    /* space either side (in nr of aliens) of alien pattern */
 
 pub const ALIEN_POINTS: i32 = 100;  /* number of points per alien */
@@ -393,6 +393,9 @@ impl Aliens
         baddies.squadron.push(baddie);
       }
     }
+    
+    /* sort baddies from high y to low y, for bomb dropping code */
+    baddies.squadron.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap());
 
     return baddies;
   }
