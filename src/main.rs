@@ -12,11 +12,13 @@ extern crate kiss3d;
 extern crate nalgebra as na;
 extern crate rand;
 
+use std::path::Path;
 use glfw::{ Action, WindowEvent };
-use na::Point3;
+use na::{ Point3, Point2 };
 use kiss3d::window::Window;
 use kiss3d::light::Light;
 use kiss3d::camera::ArcBall;
+use kiss3d::text::Font;
 
 mod aliens;
 mod hero;
@@ -24,7 +26,7 @@ mod bullet;
 mod collision;
 
 const MAX_SCORE: i32 = 9999999; /* seems like a cool number */
-const MAX_LIVES: i32 = 9; /* also a cool number */
+const MAX_LIVES: i32 = 99; /* also a cool number */
 
 /* collect up the objects in the playfield */
 struct Playfield
@@ -122,6 +124,8 @@ fn play_game(mut window: &mut Window)
  */
 fn play_level(mut window: &mut Window, camera: &mut ArcBall, state: &mut Game) -> LevelOutcome
 {
+  let font = Font::new(&Path::new("media/unibody_smallcaps.otf"), 64);
+
   /* create the baddies and hero for this level */
   let mut playfield = Playfield
   {
@@ -136,6 +140,9 @@ fn play_level(mut window: &mut Window, camera: &mut ArcBall, state: &mut Game) -
   /* rendering loop */
   while window.render_with_camera(camera)
   {
+    /* render the score line */
+    window.draw_text(format!("Score: {:07}    Lives: {:02}", state.score, state.lives).as_str(), &Point2::new(10.0, 2.0), &font, &Point3::new(1.0, 1.0, 1.0));
+
     /* update aliens, player and any of their bullets / bombs in play */
     playfield.aliens.animate();
     playfield.player.animate();
