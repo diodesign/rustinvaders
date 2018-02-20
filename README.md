@@ -23,4 +23,4 @@ Press `z` to move to the left, `x` to go right, `Return` to fire. You can only h
 
 ## Feedback
 
-This is a work in progrss - there are many little things to add and improve. If you have any suggestions, patches, complaints, etc, then submit an issue or pull request, or [try emailing me](mailto:diodesign@gmail.com). Cheers for taking an interesting.
+This is a work in progrss - there are many little things to add and improve. If you have any suggestions, patches, complaints, etc, then submit an issue or pull request, or [try emailing me](mailto:diodesign@gmail.com). Cheers for taking an interest.
