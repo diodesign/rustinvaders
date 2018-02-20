@@ -2,6 +2,10 @@
 
 This is a simple 3D game written in Rust, and inspired by the arcade classic _Space Invaders_. This was created purely for fun while taking my first steps in graphics and games programming. It uses the extremely handy [Kiss3D](http://kiss3d.org/) engine.
 
+## Obligatory screenshot
+
+![Screenshot of the player's ship (grey cone) firing a bullet (red sphere) at waves of green aliens, which explode when hit, while avoiding the invaders' bombs (green spheres)](https://raw.githubusercontent.com/diodesign/rustinvaders/screenshots/early-screenshot.png)
+
 ## Building
 
 I recommend building this in an official [Debian-based Rust Docker container](https://hub.docker.com/_/rust/) with the following extra packages installed: `xorg-dev libglu1-mesa-dev`
