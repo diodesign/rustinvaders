@@ -20,12 +20,8 @@ use na::{Vector3, Translation3, UnitQuaternion};
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
-/* define collision outcomes */
-pub enum Collision
-{
-  OutOfBounds, /* bullet left playfield */
-  HitAlien /* bullet hit an alien */
-}
+use bullet;
+use collision;
 
 const ALIEN_HEIGHT: f32     = 10.0; /* in 3d units */
 const ALIEN_WIDTH: f32      = 13.0; /* in 3d units */
@@ -33,9 +29,15 @@ const ALIENS_PER_ROW: i32   = 11;
 const ALIEN_ROWS: i32       = 5;
 const ALIEN_TOP_Y: i32      = 7;    /* in whole number of aliens from game world center */
 const ALIEN_SIDE_SPACE: i32 = 3;    /* space either side (in nr of aliens) of alien pattern */
-pub const ALIEN_POINTS: i32 = 100;  /* number of points per alien */
 
-const COLLISION_TOLERANCE: f32 = 5.0; /* objects closer than this are considered collided */
+pub const ALIEN_POINTS: i32 = 100;  /* number of points per alien */
+pub const ALIEN_Y_CEILING: f32 = (ALIEN_TOP_Y as f32) * ALIEN_HEIGHT;
+
+const BOMB_RADIUS:  f32 = 4.0;
+const BOMB_COLOR_R: f32 = 0.0;
+const BOMB_COLOR_G: f32 = 1.0;
+const BOMB_COLOR_B: f32 = 0.0;
+const BOMB_DESCENT: f32 = -1.0;
 
 /* aliens are made up of a number of pixels */
 struct Pixel
@@ -294,7 +296,17 @@ impl Alien
       }
     };
   }
-  
+
+  /* remove all objects (pixels) from the game world */
+  pub fn delete(&mut self)
+  {
+    for pixel in self.pixels.iter_mut()
+    {
+      pixel.node.as_mut().unwrap().unlink();
+      pixel.node = None;
+    }
+  }
+
   /* animate blowing up the alien: scatter its compoents, spinning them, and then delete them */
   fn explode(&mut self)
   {
@@ -326,7 +338,6 @@ impl Alien
     {
       for pixel in self.pixels.iter_mut()
       {
-        pixel.node.as_mut().unwrap().set_visible(false);
         pixel.node.as_mut().unwrap().unlink();
       }
       self.state = State::Dead;
@@ -345,161 +356,204 @@ fn random_explosion_vector(rng: &mut rand::ThreadRng) -> f32
   return rng.gen_range(0.1f32, 0.5f32);
 }
 
-/* construct a playfield of aliens, pass it back as a vector of aliens */
-pub fn spawn_playfield(mut window: &mut Window) -> Vec<Alien>
+/* ------------------------------------------------------------------------------ */
+
+/* collect up all aliens and the bomb they drop in a playfield together */
+pub struct Aliens
 {
-  let mut baddies = Vec::<Alien>::with_capacity(55);
+  squadron: Vec<Alien>,
+  pub bomb: Option<bullet::Bullet>
+}
 
-  /* generate a formation ALIENS_PER_ROW number of aliens wide, centered
-   * on the x-axis, and ALIEN_ROWS number of aliens tall, from ALIEN_TOP_Y downwards.
-   * ALIEN_TOP_Y is in whole number of aliens from the center of the game world  */ 
-
-  for y in (ALIEN_TOP_Y - ALIEN_ROWS)..ALIEN_TOP_Y
+/* control the whole squad at once */
+impl Aliens
+{
+  /* construct a playfield of aliens, pass it back as a vector of aliens */
+  pub fn new(mut window: &mut Window) -> Aliens
   {
-    for x in 0 - (ALIENS_PER_ROW / 2)..(ALIENS_PER_ROW / 2) + 1
+    let mut baddies = Aliens
     {
-      let mut baddie = Alien::new(&mut window);
-      let rotation = 0.4 * ((x + y) as f32);
-      baddie.spawn(x as f32 * ALIEN_WIDTH, y as f32 * ALIEN_HEIGHT, 0.0, rotation);
-      baddies.push(baddie);
+      squadron: Vec::<Alien>::with_capacity(55),
+      bomb: None
+    };
+
+    /* generate a formation ALIENS_PER_ROW number of aliens wide, centered
+    * on the x-axis, and ALIEN_ROWS number of aliens tall, from ALIEN_TOP_Y downwards.
+    * ALIEN_TOP_Y is in whole number of aliens from the center of the playfield */
+    for y in (ALIEN_TOP_Y - ALIEN_ROWS)..ALIEN_TOP_Y
+    {
+      for x in 0 - (ALIENS_PER_ROW / 2)..(ALIENS_PER_ROW / 2) + 1
+      {
+        let mut baddie = Alien::new(&mut window);
+        let rotation = 0.4 * ((x + y) as f32);
+        baddie.spawn(x as f32 * ALIEN_WIDTH, y as f32 * ALIEN_HEIGHT, 0.0, rotation);
+        baddies.squadron.push(baddie);
+      }
+    }
+
+    return baddies;
+  }
+
+  /* ensure all objects are removed from the game world */
+  pub fn delete(&mut self)
+  {
+    for baddie in self.squadron.iter_mut()
+    {
+      baddie.delete();
+    }
+    self.destroy_bomb();
+  }
+
+  /* drop a bomb if one isn't already in play */
+  pub fn fire(&mut self, mut window: &mut Window)
+  {
+    if self.bomb.is_none() == true
+    {
+      self.bomb = Some(bullet::Bullet::new(&mut window, 0.0, 0.0, BOMB_RADIUS,
+                                           BOMB_COLOR_R, BOMB_COLOR_G, BOMB_COLOR_B,
+                                           BOMB_DESCENT));
     }
   }
 
-  return baddies;
-}
-
-/* update the positions of the aliens and check to see if any collided with the invisible walls
- * which causes them to move down a row and reverse movement */
-pub fn animate_playfield(aliens: &mut Vec<Alien>)
-{
-  let mut hit_wall_right = false;
-  let mut hit_wall_left = false;
-
-  /* move the aliens and check for collision with side walls */
-  for baddie in aliens.iter_mut().filter(|f| f.state != State::Dead)
+  /* remove bomb from game */
+  pub fn destroy_bomb(&mut self)
   {
-    /* animate and move the alien */
-    baddie.animate();
-
-    /* if we're moving left or right, check to see if we hit a wall */
-    match baddie.movement
+    if self.bomb.as_mut().is_some() == true
     {
-      Movement::Left | Movement::Right =>
-      {
-        /* did the baddie just collide with a wall om the left? */
-        if baddie.x > ((ALIENS_PER_ROW / 2) + 1 + ALIEN_SIDE_SPACE) as f32 * ALIEN_WIDTH
-        {
-          hit_wall_left = true;
-        }
-        
-        /* did the baddie just collide with a wall om the right? */
-        if baddie.x < ((ALIENS_PER_ROW / 2) + ALIEN_SIDE_SPACE) as f32 * (0.0 - ALIEN_WIDTH)
-        {
-          hit_wall_right = true;
-        }
-      },
+      self.bomb.as_mut().unwrap().destroy();
+      self.bomb = None;
+    }
+  }
 
-      /* if we're going down then make sure we don't go down too far - just one row */
-      Movement::DownLeft =>
+  /* update the positions of the aliens and check to see if any collided with the invisible walls
+   * which causes them to move down a row and reverse movement. also animate the aliens' bomb */
+  pub fn animate(&mut self)
+  {
+    let mut hit_wall_right = false;
+    let mut hit_wall_left = false;
+
+    /* animate the aliens' bomb */
+    if self.bomb.is_some() == true
+    {
+      self.bomb.as_mut().unwrap().animate();
+    }
+
+    /* move the aliens one by one, and check for collision with side walls */
+    for baddie in self.squadron.iter_mut().filter(|f| f.state != State::Dead)
+    {
+      /* animate and move this particular alien */
+      baddie.animate();
+
+      /* if we're moving left or right, check to see if we hit a wall */
+      match baddie.movement
       {
-        if baddie.drop_steps < 0.0 - ALIEN_HEIGHT
+        Movement::Left | Movement::Right =>
         {
-          baddie.movement = Movement::Left
+          /* did the baddie just collide with a wall om the left? */
+          if baddie.x > ((ALIENS_PER_ROW / 2) + 1 + ALIEN_SIDE_SPACE) as f32 * ALIEN_WIDTH
+          {
+            hit_wall_left = true;
+          }
+          
+          /* did the baddie just collide with a wall om the right? */
+          if baddie.x < ((ALIENS_PER_ROW / 2) + ALIEN_SIDE_SPACE) as f32 * (0.0 - ALIEN_WIDTH)
+          {
+            hit_wall_right = true;
+          }
+        },
+
+        /* if we're going down then make sure we don't go down too far - just one row */
+        Movement::DownLeft =>
+        {
+          if baddie.drop_steps < 0.0 - ALIEN_HEIGHT
+          {
+            baddie.movement = Movement::Left
+          }
+        },
+        
+        Movement::DownRight =>
+        {
+          if baddie.drop_steps < 0.0 - ALIEN_HEIGHT
+          {
+            baddie.movement = Movement::Right
+          }
         }
-      },
-      
-      Movement::DownRight =>
+      }
+    }
+
+    /* if one or more of the aliens hit a side wall, then change their directions so they're
+    * all moving downwards */
+    if hit_wall_right == true
+    {
+      for faller in self.squadron.iter_mut()
       {
-        if baddie.drop_steps < 0.0 - ALIEN_HEIGHT
-        {
-          baddie.movement = Movement::Right
-        }
+        faller.drop_steps = 0.0;
+        faller.movement = Movement::DownLeft; /* go down then left */
+      }
+    }
+    if hit_wall_left == true
+    {
+      for faller in self.squadron.iter_mut()
+      {
+        faller.drop_steps = 0.0;
+        faller.movement = Movement::DownRight; /* go down then left */
       }
     }
   }
 
-  /* if one or more of the aliens hit a side wall, then change their directions so they're
-   * all moving downwards */
-  if hit_wall_right == true
+  /* return true if all aliens in the squadron are finally dead */
+  pub fn all_dead(&mut self) -> bool
   {
-    for faller in aliens.iter_mut()
+    for baddie in self.squadron.iter()
     {
-      faller.drop_steps = 0.0;
-      faller.movement = Movement::DownLeft; /* go down then left */
+      if baddie.state != State::Dead
+      {
+        return false;
+      }
     }
-  }
-  if hit_wall_left == true
-  {
-    for faller in aliens.iter_mut()
-    {
-      faller.drop_steps = 0.0;
-      faller.movement = Movement::DownRight; /* go down then left */
-    }
-  }
-}
-
-/* check to see if a bullet has left the playfield or hit an alien.
- * if an alien is hit then blow it up and remove it */
-pub fn detect_bullet_collision(aliens: &mut Vec<Alien>, bullet_x: f32, bullet_y: f32) -> Option<Collision>
-{
-  /* bullet is dead as soon as it's out of area */
-  if bullet_y > (ALIEN_TOP_Y as f32 * ALIEN_HEIGHT)
-  {
-    return Some(Collision::OutOfBounds);
-  }
-
-  /* check through all the aliens */
-  for baddie in aliens.iter_mut().filter(|f| f.state == State::Alive)
-  {
-    if detect_collision(bullet_x, bullet_y, baddie.x, baddie.y) == true
-    {
-      baddie.die();
-      return Some(Collision::HitAlien);
-    }
-  }
-
-  return None; /* nothing happened */
-}
-
-/* check to see if an alien (in the array aliens) has hit the player (x, y) craft */
-pub fn detect_ship_collision(aliens: &mut Vec<Alien>, x: f32, y: f32) -> bool
-{
-  for baddie in aliens.iter_mut().filter(|f| f.state == State::Alive)
-  {
-    /* if an alien sneaks under the player then it's game over */
-    if baddie.y < y || detect_collision(baddie.x, baddie.y, x, y) == true
-    {
-      return true;
-    }
-  }
-
-  return false;
-}
- 
-/* returns true if object with coords ax,ay is very close to or in direct collision with
- * an object at coords bx,by. no z coord comparison, of course */
-fn detect_collision(ax: f32, ay: f32, bx: f32, by: f32) -> bool
-{
-  if ax < bx + COLLISION_TOLERANCE && ax > bx - COLLISION_TOLERANCE &&
-     ay < by + COLLISION_TOLERANCE && ay > by - COLLISION_TOLERANCE
-  {
     return true;
   }
 
-  return false;
-}
-
-/* return true if all aliens in the array of aliens are finally dead */
-pub fn all_dead(aliens: &mut Vec<Alien>) -> bool
-{
-  for baddie in aliens.iter()
+  /* return the lowest Y coord of the alien squadron */
+  pub fn lowest_y(&mut self) -> f32
   {
-    if baddie.state != State::Dead
+    let mut lowest = ALIEN_Y_CEILING;
+    for baddie in self.squadron.iter()
     {
-      return false;
+      if baddie.y < lowest
+      {
+        lowest = baddie.y;
+      }
     }
-  }
-  return true;
-}
 
+    return lowest;
+  }
+
+  /* check to see if any alive aliens collide with the thing at x,y. if one does,
+   * then blow it up and return a hit */
+  pub fn collision(&mut self, x: f32, y: f32) -> collision::CollisionOutcome
+  {
+    for baddie in self.squadron.iter_mut().filter(|b| b.state == State::Alive)
+    {
+      let scenario = collision::Collision
+      {
+        a: collision::CollisionObject{ x: x, y: y },
+        b: collision::CollisionObject{ x: baddie.x, y: baddie.y }
+      };
+
+      match collision::check(scenario)
+      {
+        collision::CollisionOutcome::Hit =>
+        {
+          baddie.die();
+          return collision::CollisionOutcome::Hit;
+        },
+
+        _ => {}
+      };
+    }
+
+    return collision::CollisionOutcome::Miss;
+  }
+}
 

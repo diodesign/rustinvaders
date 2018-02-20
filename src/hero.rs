@@ -18,20 +18,26 @@ use na::Translation3;
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
-const HERO_HEIGHT:    f32 = 13.0;
-const HERO_RADIUS:    f32 = 5.0;
-const HERO_Y_BASE:    f32 = -90.0;
-const HERO_GRAY:      f32 = 0.8;
-const HERO_MOVE_STEP: f32 = 1.0;
+use bullet;
+use collision;
 
-pub const BULLET_Y_START: f32 = HERO_Y_BASE + (HERO_HEIGHT / 2.0);
-pub const BULLET_RADIUS:  f32 = 2.0;
-pub const BULLET_COLOR_R: f32 = 1.0;
-pub const BULLET_COLOR_G: f32 = 0.0;
-pub const BULLET_COLOR_B: f32 = 0.0;
-pub const BULLET_ASCENT:  f32 = 2.0;
+const HERO_HEIGHT:     f32 = 13.0;
+const HERO_RADIUS:     f32 = 5.0;
+const HERO_GRAY:       f32 = 0.8;
+const HERO_MOVE_STEP:  f32 = 1.0;
+const HERO_Y_BASE: f32 = -90.0;
+
+pub const HERO_Y_FLOOR: f32 = HERO_Y_BASE - (HERO_HEIGHT / 2.0);
+
+const BULLET_Y_START: f32 = HERO_Y_BASE + (HERO_HEIGHT / 2.0);
+const BULLET_RADIUS:  f32 = 2.0;
+const BULLET_COLOR_R: f32 = 1.0;
+const BULLET_COLOR_G: f32 = 0.0;
+const BULLET_COLOR_B: f32 = 0.0;
+const BULLET_ASCENT:  f32 = 2.0;
 
 /* Player has 3 game states: alive, exploding, or dead */
+#[derive(PartialEq)]
 pub enum State
 {
   Alive,
@@ -39,18 +45,12 @@ pub enum State
   Dead
 }
 
-/* define how a player's ship should be removed from the playfield */
-pub enum Destruction
-{
-  Explode,  /* make it blow up */
-  NoExplode /* just remove it immediately */
-}
-
 pub struct Hero
 {
-  x: f32, y: f32, z: f32,   /* world coords of the hero's ship */
-  ship: Option<SceneNode>,  /* the ship in the graphics context */
-  state: State
+  x: f32, y: f32, z: f32,   /* game world coords of the hero's ship */
+  ship: SceneNode,          /* the ship in the graphics context */
+  pub state: State,
+  pub bullet: Option<bullet::Bullet> /* bullet fired by the ship */
 }
 
 impl Hero
@@ -62,29 +62,87 @@ impl Hero
     {
       state: State::Alive,
       x: x, y: HERO_Y_BASE, z: 0.0,
-      ship: Some(window.add_cone(HERO_RADIUS, HERO_HEIGHT))
+      ship: window.add_cone(HERO_RADIUS, HERO_HEIGHT),
+      bullet: None
     };
     
-    hero.ship.as_mut().unwrap().append_translation(&Translation3::new(hero.x, hero.y, hero.z));
-    hero.ship.as_mut().unwrap().set_color(HERO_GRAY, HERO_GRAY, HERO_GRAY);
+    hero.ship.append_translation(&Translation3::new(hero.x, hero.y, hero.z));
+    hero.ship.set_color(HERO_GRAY, HERO_GRAY, HERO_GRAY);
 
     return hero;
   }
 
-  /* blow up the ship */
-  pub fn destroy(&mut self, mode: Destruction)
+  /* make sure everything is removed from the game world */
+  pub fn delete(&mut self)
   {
-    self.ship.as_mut().unwrap().unlink();
-    match mode
+    self.ship.unlink();
+    self.destroy_bullet();
+  }
+
+  /* start blowing up the ship */
+  pub fn destroy(&mut self)
+  {
+    self.state = State::Dying;
+  }
+
+  /* animate the ship exploding or its bullet */
+  pub fn animate(&mut self)
+  {
+    /* if the ship is blowing up then keep it hidden, otherwise visible */
+    match self.state
     {
-      Destruction::Explode => self.state = State::Dying,
-      Destruction::NoExplode => self.state = State::Dead
+      State::Alive => self.ship.set_visible(true),
+      _ => self.ship.set_visible(false)
+    }
+
+    if self.bullet.is_some() == true
+    {
+      /* animate the bullet */
+      self.bullet.as_mut().unwrap().animate();
     }
   }
 
-  /* animate the ship explode */
-  pub fn animate(&self)
+  /* fire a new bullet if one isn't already in play */
+  pub fn fire(&mut self, mut window: &mut Window)
   {
+    if self.bullet.is_some() == false
+    {
+      self.bullet = Some(bullet::Bullet::new(&mut window, self.x, BULLET_Y_START,
+                                             BULLET_RADIUS, BULLET_COLOR_R, BULLET_COLOR_G,
+                                             BULLET_COLOR_B, BULLET_ASCENT));
+    }
+  }
+
+  /* remove bullet from game */
+  pub fn destroy_bullet(&mut self)
+  {
+    if self.bullet.as_mut().is_some() == true
+    {
+      self.bullet.as_mut().unwrap().destroy();
+      self.bullet = None;
+    }
+  }
+
+  /* check to see if the ship has collidded with a thing at x,y. if so, then
+   * blow up the ship */
+  pub fn collision(&mut self, x: f32, y: f32) -> collision::CollisionOutcome
+  {
+    let scenario = collision::Collision
+    {
+      a: collision::CollisionObject{ x: x, y: y },
+      b: collision::CollisionObject{ x: self.x, y: self.y }
+    };
+
+    match collision::check(scenario)
+    {
+      collision::CollisionOutcome::Hit =>
+      {
+        self.destroy();
+        collision::CollisionOutcome::Hit
+      },
+
+      _ => collision::CollisionOutcome::Miss
+    }
   }
 
   /* returns Some(x, y, z) coords of the ship */
@@ -106,7 +164,7 @@ impl Hero
   fn move_ship(&mut self, distance: f32)
   {
     self.x = self.x + distance;
-    self.ship.as_mut().unwrap().append_translation(&Translation3::new(distance, 0.0, 0.0));
+    self.ship.append_translation(&Translation3::new(distance, 0.0, 0.0));
   }
 }
 
