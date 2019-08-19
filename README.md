@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/diodesign/rustinvaders.svg?branch=master)](https://travis-ci.org/diodesign/rustinvaders)
+
 # Rustinvaders
 
 This is a simple 3D game written in Rust, and inspired by the arcade classic _Space Invaders_. This was created purely for fun while taking my first steps in graphics and games programming. It uses the extremely handy [Kiss3D](http://kiss3d.org/) engine.
