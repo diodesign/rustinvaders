@@ -3,7 +3,7 @@
  * Alien designs
  *
  * Game concept by Tomohiro Nishikado / Taito
- * Rust code By Chris Williams <diodesign@gmail.com>
+ * Rust code By Chris Williams <diodesign@tuta.io>
  *
  * Written for fun. See LICENSE.
  *
@@ -20,8 +20,8 @@ use na::{ Vector3, Translation3, UnitQuaternion };
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
-use bullet;
-use collision;
+use super::bullet;
+use super::collision;
 
 const ALIEN_HEIGHT: f32     = 10.0; /* in 3d units */
 const ALIEN_WIDTH: f32      = 13.0; /* in 3d units */
@@ -66,7 +66,7 @@ enum State
 }
 
 /* aliens are either shuffling left, right, or down and then right, or down then left */
-enum Movement
+pub enum Movement
 {
   Left,         /* moving left */
   Right,        /* moving right */
@@ -74,7 +74,7 @@ enum Movement
   DownLeft      /* moving down, will go left */
 }
 
-/* aliens have 2 animation states: the base design and a slightly modified one */ 
+/* aliens have 2 animation states: the base design and a slightly modified one */
 enum Frame
 {
   Base,
@@ -90,7 +90,7 @@ pub struct Alien
   state: State,                   /* whether the alien is alive, dead, etc */
   last_time: Instant,             /* last time we animated this alien */
   time_of_death: Option<Instant>, /* when the alien was declared dead */
-  rng: rand::ThreadRng,           /* access to the thread's RNG */
+  rng: rand::rngs::ThreadRng,     /* access to the thread's RNG */
   drop_steps: f32,                /* number of units we've moved alien down at end of row */
   movement: Movement              /* the direction the alien is traveling */
 }
@@ -109,20 +109,20 @@ impl Alien
        * as is. the overall design is:
 
            *     *
-            *   *   
-           *******  
-          ** *** ** 
+            *   *
+           *******
+          ** *** **
          ***********
          * ******* *
          * *     * *
             ** **       */
-           
+
 
       pixels: vec!
       [
         Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -3.0, y:  4.0, z: 0.0, tx:  1.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None, explode_x: 0.0, explode_y: 0.0, explode_z: 0.0 },
         Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  3.0, y:  4.0, z: 0.0, tx: -1.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None, explode_x: 0.0, explode_y: 0.0, explode_z: 0.0 },
-        
+
         Pixel { width:  1.0, height: 1.0, depth: 1.0, x: -2.0, y:  3.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None, explode_x: 0.0, explode_y: 0.0, explode_z: 0.0 },
         Pixel { width:  1.0, height: 1.0, depth: 1.0, x:  2.0, y:  3.0, z: 0.0, tx:  0.0, ty: 0.0, tz: 0.0, r: 0.2, g: 1.0, b: 0.2, node: None, explode_x: 0.0, explode_y: 0.0, explode_z: 0.0 },
 
@@ -156,7 +156,7 @@ impl Alien
       frame: Frame::Base,
 
       state: State::Alive,
-      last_time: Instant::now(), 
+      last_time: Instant::now(),
       time_of_death: None,
       rng: rand::thread_rng(),
       drop_steps: 0.0,
@@ -216,9 +216,9 @@ impl Alien
 
     self.time_of_death = Some(Instant::now());
   }
-  
+
   /* call for each video frame to animate the alien
-   * => step = number of coordinate points to move */
+   * => step = number of coordinate points to move. 0.0 for no movement */
   pub fn animate(&mut self, step: f32)
   {
     /* are we supposed to be exploding or be alive doing stuff? */
@@ -308,18 +308,30 @@ impl Alien
     }
   }
 
+  /* override_color
+     Set all the pixels in an alien to a particular color
+     => r, g, b = new RGB color of all the alien's pixel blocks
+  */
+  pub fn override_color(&mut self, r: f32, g: f32, b: f32)
+  {
+    for pixel in self.pixels.iter_mut()
+    {
+      pixel.node.as_mut().unwrap().set_color(r, g, b);
+    }
+  }
+
   /* animate blowing up the alien: scatter its compoents, spinning them, and then delete them */
   fn explode(&mut self)
   {
     let rotate = UnitQuaternion::from_axis_angle(&Vector3::y_axis(), 0.05);
     let secs_since_death = self.time_of_death.unwrap().elapsed().as_secs();
-    
+
     for pixel in self.pixels.iter_mut()
     {
       pixel.node.as_mut().unwrap().append_translation(&Translation3::new(pixel.explode_x, pixel.explode_y, pixel.explode_z));
       pixel.node.as_mut().unwrap().prepend_to_local_rotation(&rotate);
-   
-      /* change color of the pixel based on seconds passed */ 
+
+      /* change color of the pixel based on seconds passed */
       match secs_since_death
       {
         0 | 1 => pixel.node.as_mut().unwrap().set_color(1.0, 0.4, 0.0),
@@ -347,15 +359,15 @@ impl Alien
 }
 
 /* ------------------------------------------------------------------------------ */
-  
+
 /* generate a random value suitable for exploding a pixel */
-pub fn random_explosion_vector(rng: &mut rand::ThreadRng) -> f32
+pub fn random_explosion_vector(rng: &mut rand::rngs::ThreadRng) -> f32
 {
   if rng.gen()
   {
     return rng.gen_range(-0.5f32, -0.1f32);
   }
-  
+
   return rng.gen_range(0.1f32, 0.5f32);
 }
 
@@ -393,7 +405,7 @@ impl Aliens
         baddies.squadron.push(baddie);
       }
     }
-    
+
     /* sort baddies from high y to low y, for bomb dropping code */
     baddies.squadron.sort_by(|a, b| b.y.partial_cmp(&a.y).unwrap());
 
@@ -417,18 +429,18 @@ impl Aliens
     {
       /* work out how many aliens are alive and therefore qualify to drop a bomb */
       let aliens = self.squadron.iter().filter(|f| f.state == State::Alive).count();
-      
+
       if aliens == 0
       {
         return; /* no alive aliens means no bombs dropped */
       }
-      
+
       /* work out which alien should drop a bomb next. the lowest alien in each column can
        * drop a bomb. first pick a random alive alien so we get its x, y position */
-      let index = rand::thread_rng().next_u64() as usize % aliens;
+      let index = rand::thread_rng().gen::<usize>() % aliens;
       let baddie = self.squadron.iter().filter(|f| f.state == State::Alive).nth(index).unwrap();
 
-      /* now find the alien in the same x column with the lowest y. this assumes 
+      /* now find the alien in the same x column with the lowest y. this assumes
        * the vector remains sorted from top left to bottom right... */
       let lowest = self.squadron.iter().filter(|f| f.x == baddie.x && f.y <= baddie.y).last().unwrap();
 
@@ -483,7 +495,7 @@ impl Aliens
           {
             hit_wall_left = true;
           }
-          
+
           /* did the baddie just collide with a wall om the right? */
           if baddie.x < ((ALIENS_PER_ROW / 2) + ALIEN_SIDE_SPACE) as f32 * (0.0 - ALIEN_WIDTH)
           {
@@ -499,7 +511,7 @@ impl Aliens
             baddie.movement = Movement::Left
           }
         },
-        
+
         Movement::DownRight =>
         {
           if baddie.drop_steps < 0.0 - ALIEN_HEIGHT
@@ -582,4 +594,3 @@ impl Aliens
     return collision::CollisionOutcome::Miss;
   }
 }
-

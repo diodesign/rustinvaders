@@ -19,8 +19,8 @@ cargo run --release
 
 ## Playing
 
-Press `z` to move to the left, `x` to go right, `Return` to fire. You can only have one bullet on screen at a time: that's a deliberate restriction to keep the gameplay faithful to the original. The aliens also drop bombs, and speed up as you destroy more of them – again, like the original. If you're hit by an alien or one of their bombs, you'll lose a life. You have three lives until it's game over. If the aliens manage to get below your ship, it's immediately game over.
+Press `z` to move to the left, `x` to go right, `Return` to fire. You can only have one bullet on screen at a time: that's a deliberate restriction to keep the gameplay faithful to the original. The aliens also drop bombs, and speed up as you destroy more of them - again, like the original. If you're hit by an alien or one of their bombs, you'll lose a life. You have three lives until it's game over. If the aliens manage to get below your ship, it's immediately game over.
 
 ## Feedback
 
-This is a work in progrss - there are many little things to add and improve. If you have any suggestions, patches, complaints, etc, then submit an issue or pull request, or [try emailing me](mailto:diodesign@gmail.com). Cheers for taking an interest.
+This is a work in progress - there are many little things to add and improve. If you have any suggestions, patches, complaints, etc, then submit an issue or pull request, or [try emailing me](mailto:diodesign@tuta.io). Cheers for taking an interest.

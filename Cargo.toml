@@ -1,11 +1,12 @@
 [package]
 name = "rustinvaders"
 version = "0.1.0"
-authors = [ "Chris Williams <diodesign@gmail.com>" ]
+authors = [ "Chris Williams <diodesign@tuta.io>" ]
+publish = false
+edition = "2018"
 
 [dependencies]
-glfw = "*"
-kiss3d = "*"
-nalgebra = "*"
-rand = "*"
-
+glfw = "0.31.0"
+kiss3d = "0.21.0"
+nalgebra = "0.18.0"
+rand = "0.7.0"

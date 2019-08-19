@@ -3,7 +3,7 @@
  * Player graphics
  *
  * Game concept by Tomohiro Nishikado / Taito
- * Rust code By Chris Williams <diodesign@gmail.com>
+ * Rust code By Chris Williams <diodesign@tuta.io>
  *
  * Written for fun. See LICENSE.
  *
@@ -19,9 +19,9 @@ use na::{ Translation3, UnitQuaternion, Vector3 };
 use kiss3d::window::Window;
 use kiss3d::scene::SceneNode;
 
-use bullet;
-use collision;
-use aliens::random_explosion_vector;
+use super::bullet;
+use super::collision;
+use super::aliens::random_explosion_vector;
 
 const HERO_HEIGHT:     f32 = 13.0;
 const HERO_RADIUS:     f32 = 5.0;

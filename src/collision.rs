@@ -3,7 +3,7 @@
  * 2D collision checking
  *
  * Game concept by Tomohiro Nishikado / Taito
- * Rust code By Chris Williams <diodesign@gmail.com>
+ * Rust code By Chris Williams <diodesign@tuta.io>
  *
  * Written for fun. See LICENSE.
  *
