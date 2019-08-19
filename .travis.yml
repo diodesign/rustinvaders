@@ -1,0 +1,17 @@
+#
+# rustinvader's CI script
+#
+dist: bionic
+language: rust
+rust:
+  - nightly
+cache: cargo
+notifications:
+  email: false
+
+script:
+  - cargo build --verbose --all
+
+branches:
+  only:
+    - master
