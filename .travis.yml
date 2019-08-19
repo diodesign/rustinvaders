@@ -6,8 +6,13 @@ language: rust
 rust:
   - nightly
 cache: cargo
+sudo: required
 notifications:
   email: false
+
+before_script:
+  - sudo apt update
+  - sudo apt install xorg-dev libglu1-mesa-dev
 
 script:
   - cargo build --verbose --all
